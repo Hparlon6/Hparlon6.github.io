@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="ADDON_ID_HERE" name="REPO_NAME_HERE" version="VERSION_NUMBER_HERE" provider-name="YOUR_USERNAME_HERE">
+<addon id="plugin.video.acestream_channels" name="Acestream Channels" version="1.0.0" provider-name="Gunter25">
     <extension point="xbmc.addon.repository" name="Example Repository">
         <dir>
-            <info compressed="false">https://raw.githubusercontent.com/YOUR_USERNAME_HERE/REPOSITORY_NAME_HERE/DEFAULT_BRANCH_NAME_HERE/repo/zips/addons.xml</info>
-            <checksum>https://raw.githubusercontent.com/YOUR_USERNAME_HERE/REPOSITORY_NAME_HERE/DEFAULT_BRANCH_NAME_HERE/repo/zips/addons.xml.md5</checksum>
-            <datadir zip="true">https://raw.githubusercontent.com/YOUR_USERNAME_HERE/REPOSITORY_NAME_HERE/DEFAULT_BRANCH_NAME_HERE/repo/zips/</datadir>
+            <info compressed="false">https://raw.githubusercontent.com/Hparlon6/acchnl_repo/master/repo/zips/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/Hparlon6/acchnl_repo/master/repo/zips/addons.xml.md5</checksum>
+            <datadir zip="true">https://raw.githubusercontent.com/Hparlon6/acchnl_repo/master/repo/zips/</datadir>
         </dir>
     </extension>
     <extension point="xbmc.addon.metadata">
-        <summary>REPO_NAME_HERE</summary>
-        <description>DESCRIPTION OF YOUR REPO HERE</description>
+        <summary>Acestream Channels</summary>
+        <description>Un plugin sencillo para reproducir canales mediante enlaces AceStream. INFO: Este addon solo almacena enlaces ya existentes online, no se hace responsable de su difusión ni de su reproducción. Ningún material listado es propio de este addon.</description>
         <disclaimer></disclaimer>
         <platform>all</platform>
         <assets>
