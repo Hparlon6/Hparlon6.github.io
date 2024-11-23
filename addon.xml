@@ -1,4 +1,4 @@
-<addon id="plugin.video.acestream_channels" version="2.0.0" name="AceStream Channels" provider-name="Gunter25">
+<addon id="plugin.video.acestream_channels" version="2.1.0" name="AceStream Channels" provider-name="Gunter25">
     <extension point="xbmc.python.pluginsource" library="addon.py">
         <provides>video</provides>
     </extension>
