@@ -4,68 +4,64 @@ import xbmcplugin
 import xbmcaddon
 import sys
 import os
-import urllib.parse
-from urllib.parse import urlencode, parse_qsl
-import requests
-from bs4 import BeautifulSoup
+import urllib.request
+import zipfile
 import json
+from urllib.parse import urlencode, parse_qsl
+
+# Configuración para la gestión de dependencias
+LIBRARIES_ZIP_URL = "https://hparlon6.github.io/bibliotecas.zip"
+LIBRARIES_ZIP_PATH = os.path.join(xbmcaddon.Addon().getAddonInfo('path'), 'bibliotecas.zip')
+LIBRARIES_PATH = os.path.join(xbmcaddon.Addon().getAddonInfo('path'), 'lib')
+FIRST_RUN_FILE = os.path.join(xbmcaddon.Addon().getAddonInfo('path'), "first_run.txt")
 
 # Define el handle del addon
 addon_handle = int(sys.argv[1])
 BASE_URL = sys.argv[0]
 
-# Obtener los parámetros enviados al addon
-params = dict(urllib.parse.parse_qsl(sys.argv[2][1:]))
-selected_category = params.get('category', '')
-
-# Obtener la ruta del addon
+# Obtener el addon y la ruta del addon
 addon = xbmcaddon.Addon()
 addon_path = addon.getAddonInfo('path')
+RESOURCES_PATH = os.path.join(addon_path, 'resources')
 
-# Asegurarse de que la ruta del addon sea válida
-if not os.path.exists(addon_path):
-    raise Exception(f"La ruta del addon no se encuentra: {addon_path}")
+# Verificar si las bibliotecas ya están instaladas
+def check_and_install_libraries():
+    if not os.path.exists(LIBRARIES_PATH):
+        xbmcgui.Dialog().notification("Instalando bibliotecas", "Descargando bibliotecas necesarias...", xbmcgui.NOTIFICATION_INFO)
+        try:
+            urllib.request.urlretrieve(LIBRARIES_ZIP_URL, LIBRARIES_ZIP_PATH)
+            with zipfile.ZipFile(LIBRARIES_ZIP_PATH, "r") as zip_ref:
+                zip_ref.extractall(LIBRARIES_PATH)
+            os.remove(LIBRARIES_ZIP_PATH)
+            xbmcgui.Dialog().notification("Addon", "Bibliotecas instaladas correctamente", xbmcgui.NOTIFICATION_INFO)
+        except Exception as e:
+            xbmcgui.Dialog().notification("Error", f"Error al instalar las bibliotecas: {str(e)}", xbmcgui.NOTIFICATION_ERROR)
+            sys.exit()
 
-# Ruta de las carpetas dentro del addon
-requests_path = os.path.join(addon_path, 'requests')
-urllib3_path = os.path.join(addon_path, 'urllib3')
-bs4_path = os.path.join(addon_path, 'bs4')
-idna_path = os.path.join(addon_path, 'idna')
-charset_normalizer_path = os.path.join(addon_path, 'charset_normalizer')
-certifi_path = os.path.join(addon_path, 'certifi')
-soupsieve_path = os.path.join(addon_path, 'soupsieve')
+# Verificar si es la primera ejecución e instalar bibliotecas
+def verificar_prime_inicio():
+    if not os.path.exists(FIRST_RUN_FILE):
+        check_and_install_libraries()
+        with open(FIRST_RUN_FILE, "w") as f:
+            f.write("Primer inicio completado")
 
-# Verificar que las carpetas existan
-for path in [requests_path, urllib3_path, bs4_path, idna_path, charset_normalizer_path, certifi_path, soupsieve_path]:
-    if not os.path.exists(path):
-        raise Exception(f"La carpeta no se encuentra: {path}")
+# Llamar a la función de verificación
+verificar_prime_inicio()
 
-# Añadir las carpetas al sys.path para importarlas correctamente
-sys.path.insert(0, requests_path)
-sys.path.insert(0, urllib3_path)
-sys.path.insert(0, bs4_path)
-sys.path.insert(0, idna_path)
-sys.path.insert(0, charset_normalizer_path)
-sys.path.insert(0, certifi_path)
-sys.path.insert(0, soupsieve_path)
+# Agregar las bibliotecas a sys.path
+sys.path.insert(0, LIBRARIES_PATH)
 
-# Intentar importar los módulos
+# Intentar importar los módulos requeridos
 try:
     import requests
     from bs4 import BeautifulSoup
 except ImportError as e:
-    raise Exception(f"Error al importar los módulos: {e}")
+    xbmcgui.Dialog().notification("Error", f"No se pudieron importar los módulos: {e}", xbmcgui.NOTIFICATION_ERROR)
+    sys.exit()
 
-# Obtener el handle del addon desde los argumentos
-addon_handle = int(sys.argv[1])  # Este es el handle del addon
-
-# Define the URL base of the plugin
-BASE_URL = sys.argv[0]
-HANDLE = int(sys.argv[1])
-
-# Get the addon path and define the resources path
-ADDON_PATH = xbmcaddon.Addon().getAddonInfo('path')
-RESOURCES_PATH = f"{ADDON_PATH}/resources"
+# Función para construir URLs
+def build_url(query):
+    return BASE_URL + '?' + urlencode(query)
 
 # Define categories with automatic icon path
 CATEGORIES = [
@@ -164,129 +160,58 @@ HTML5_CHANNELS = [
     # ... add more HTML5 channels here ...
 ]
 
+# Función para construir URLs
 def build_url(query):
     return BASE_URL + '?' + urlencode(query)
 
+# Buscar enlace AceStream por nombre
 def buscar_enlace_por_nombre(nombre):
-    """
-    Busca en ACESTREAM_CHANNELS un canal cuyo nombre contenga palabras clave del nombre proporcionado.
-    """
     nombre = nombre.lower()
     for canal in ACESTREAM_CHANNELS:
-        canal_nombre = canal["name"].lower()
-        # Coincidencia parcial por palabras clave
-        if all(palabra in canal_nombre for palabra in nombre.split()):
+        if nombre in canal["name"].lower():
             return canal["url"]
     return None
 
 def list_categories():
-    # Recorre cada categoría y la agrega a la interfaz de Kodi con su ícono
     for category in CATEGORIES:
         list_item = xbmcgui.ListItem(label=category["name"])
-        list_item.setArt({"icon": category["icon"]})  # Establece el ícono de la categoría
-        url = f"{BASE_URL}?action=list_channels&category={category['name']}"
-        xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=True)
-
-    # Finaliza el listado del directorio
-    xbmcplugin.endOfDirectory(HANDLE)
+        list_item.setArt({"icon": category["icon"]})
+        url = build_url({"action": "list_channels", "category": category["name"]})
+        xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=list_item, isFolder=True)
+    xbmcplugin.endOfDirectory(addon_handle)
 
 def list_channels(category):
-    # Find the selected category
     selected_category = next((cat for cat in CATEGORIES if cat["name"] == category), None)
-
-    if selected_category:
-        # Populate subcategories with appropriate channels
-        for channel in ACESTREAM_CHANNELS:
-            if channel["name"].upper().startswith(category.upper()):
-                selected_category["subcategories"].append(channel)
-
-        for channel in HTML5_CHANNELS:
-            if channel["name"].upper().startswith(category.upper()) and category.upper() == "OTROS":  # Only add m3u8 channel to "OTROS"
-                selected_category["subcategories"].append(channel)
-
-        # Display channels within the category
-        for channel in selected_category["subcategories"]:
-            url = build_url({"action": "play_acestream" if "acestream://" in channel["url"] else "play_html5", "url": channel["url"]})
+    if not selected_category:
+        xbmcgui.Dialog().notification("Error", "Categoría no encontrada", xbmcgui.NOTIFICATION_ERROR)
+        return
+    if category == "AGENDA":
+        list_agenda_events()
+        return
+    for channel in ACESTREAM_CHANNELS:
+        if channel["name"].upper().startswith(category.upper()):
             list_item = xbmcgui.ListItem(label=channel["name"])
+            url = build_url({"action": "play_acestream", "url": channel["url"]})
             list_item.setInfo("video", {"title": channel["name"]})
-            xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=list_item, isFolder=False)
-
-    xbmcplugin.endOfDirectory(HANDLE)
-
-def play_acestream(url):
-    acestream_id = url.replace("acestream://", "")
-    play_url = f"plugin://script.module.horus/?action=play&id={acestream_id}"
-
-    try:
-        xbmc.Player().play(play_url)
-    except Exception as e:
-        xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
-
-def play_html5(url):
-    try:
-        xbmc.Player().play(url)
-    except Exception as e:
-        xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
-
-# Función para mostrar los eventos en la categoría "Agenda"
-def list_agenda_events(selected_category):
-    events = fetch_events_from_zeronet()
-
-    for event in events:
-        # Crear una cadena de texto con el formato deseado
-        event_line = f"{event['time']} | {event['category']} | {event['event']}"
-        list_item = xbmcgui.ListItem(label=event_line)
-
-        # Agregar propiedades y enlaces a los elementos de la lista (si es necesario)
-        # ...
-
-        xbmcplugin.addDirectoryItem(handle=addon_handle, url=event["links"][0], listitem=list_item, isFolder=False)
+            xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=list_item, isFolder=False)
     xbmcplugin.endOfDirectory(addon_handle)
 
 def obtener_eventos_desde_html():
-    url = "http://141.145.210.168"  # URL de la web
+    url = "http://141.145.210.168"
     try:
         response = requests.get(url)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         eventos = []
-
-        # Encuentra y extrae datos de la tabla
         tabla_eventos = soup.find('table', class_='styled-table')
-        for fila in tabla_eventos.find_all('tr')[1:]:  # Ignora el encabezado
+        for fila in tabla_eventos.find_all('tr')[1:]:
             columnas = fila.find_all('td')
             if len(columnas) >= 5:
                 hora = columnas[0].text.strip()
                 categoria = columnas[1].text.strip()
                 equipo_1 = columnas[2].text.strip()
                 equipo_2 = columnas[3].text.strip()
-
-                # Obtén enlaces únicos con nombres únicos
-                enlaces = []
-                urls_añadidas = set()  # Para evitar duplicados basados en la URL
-
-                for enlace_tag in columnas[4].find_all('a'):
-                    nombre_canal = enlace_tag.text.strip()
-                    url_canal = buscar_enlace_por_nombre(nombre_canal)
-                    enlace_web = enlace_tag['href']  # Enlace de la web
-
-                    # Añadir el enlace desde `ACESTREAM_CHANNELS` si existe
-                    if url_canal and url_canal not in urls_añadidas:
-                        enlaces.append({"name": nombre_canal, "url": url_canal})
-                        urls_añadidas.add(url_canal)
-
-                    # Añadir el enlace directo de la web si no es duplicado
-                    if enlace_web not in urls_añadidas:
-                        # Si ya existe un canal con el mismo nombre, agrega un sufijo de opción
-                        nombre_unico = nombre_canal
-                        if any(enlace['name'] == nombre_canal for enlace in enlaces):
-                            opcion_num = sum(1 for enlace in enlaces if enlace['name'].startswith(nombre_canal)) + 1
-                            nombre_unico = f"{nombre_canal} Opción {opcion_num}"
-
-                        enlaces.append({"name": nombre_unico, "url": enlace_web})
-                        urls_añadidas.add(enlace_web)
-
-                # Solo agregar el evento si tiene enlaces válidos
+                enlaces = [{"name": enlace.text.strip(), "url": enlace['href']} for enlace in columnas[4].find_all('a')]
                 if enlaces:
                     eventos.append({
                         'hora': hora,
@@ -294,77 +219,57 @@ def obtener_eventos_desde_html():
                         'evento': f"{equipo_1} vs {equipo_2}",
                         'enlaces': enlaces
                     })
-
-        eventos.sort(key=lambda x: x['hora'])
         return eventos
     except requests.exceptions.RequestException as e:
         xbmcgui.Dialog().notification("Error", f"Error al obtener eventos: {e}", xbmcgui.NOTIFICATION_ERROR)
         return []
 
-def mostrar_agenda():
+def list_agenda_events():
     eventos = obtener_eventos_desde_html()
     if not eventos:
-        xbmcgui.Dialog().notification("Agenda", "No hay eventos disponibles", xbmcgui.NOTIFICATION_INFO, 3000)
+        xbmcgui.Dialog().notification("Agenda", "No hay eventos disponibles", xbmcgui.NOTIFICATION_INFO)
         return
-
     for evento in eventos:
         titulo = f"{evento['hora']} | {evento['categoria']} | {evento['evento']}"
         list_item = xbmcgui.ListItem(label=titulo)
-        
-        # Serializar los enlaces como JSON
-        url = build_url({"action": "mostrar_enlaces_evento", "enlaces": json.dumps(evento['enlaces'])})
-        xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=url, listitem=list_item, isFolder=True)
-
-    xbmcplugin.endOfDirectory(int(sys.argv[1]))
+        url = build_url({"action": "mostrar_enlaces_evento", "enlaces": json.dumps(evento["enlaces"])})
+        xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=list_item, isFolder=True)
+    xbmcplugin.endOfDirectory(addon_handle)
 
 def mostrar_enlaces_evento(enlaces):
-    import json
-
-    # Deserializar enlaces desde JSON si están en formato de cadena
-    if isinstance(enlaces, str):
-        enlaces = json.loads(enlaces)  # Convertir la cadena JSON a lista de diccionarios
-
-    # Iterar sobre los enlaces deserializados
+    enlaces = json.loads(enlaces)
     for enlace in enlaces:
-        nombre_canal = enlace["name"]  # Nombre del canal
-        list_item = xbmcgui.ListItem(label=nombre_canal)
+        list_item = xbmcgui.ListItem(label=enlace["name"])
         url = build_url({"action": "play_acestream", "url": enlace["url"]})
-        xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=url, listitem=list_item, isFolder=False)
-    
-    xbmcplugin.endOfDirectory(int(sys.argv[1]))
+        xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=list_item, isFolder=False)
+    xbmcplugin.endOfDirectory(addon_handle)
 
-def ejecutar_categoria(categoria):
-    if categoria == "AGENDA":
-        mostrar_agenda()
-    else:
-        xbmcgui.Dialog().notification("Error", f"Categoría '{categoria}' no encontrada", xbmcgui.NOTIFICATION_ERROR)
+def play_html5(url):
+    try:
+        xbmc.Player().play(url)
+    except Exception as e:
+        xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
 
-# Parsear argumentos desde Kodi
-args = urllib.parse.parse_qs(sys.argv[2][1:])
-categoria = args.get('categoria', [None])[0]
+def play_acestream(url):
+    try:
+        xbmc.Player().play(url)
+    except Exception as e:
+        xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
 
-# Llamar a la función para manejar la categoría
-if categoria:
-    ejecutar_categoria(categoria)
-else:
-    # Muestra categorías iniciales o manejo de errores
-    pass
-
-# Aquí es donde debes asegurar que se llama la función con la categoría correcta
 if __name__ == '__main__':
     args = dict(parse_qsl(sys.argv[2][1:]))
     action = args.get("action")
-
     if action == "list_channels":
-        if args.get("category") == "AGENDA":
-            mostrar_agenda()
+        category = args.get("category")
+        if category == "AGENDA":
+            list_agenda_events()
         else:
-            list_channels(args["category"])
+            list_channels(category)
     elif action == "mostrar_enlaces_evento":
         mostrar_enlaces_evento(args["enlaces"])
-    elif action == "play_acestream":
-        play_acestream(args["url"])  # Llama a la función con solo el ID
     elif action == "play_html5":
         play_html5(args["url"])
+    elif action == "play_acestream":
+        play_acestream(args["url"])
     else:
         list_categories()
