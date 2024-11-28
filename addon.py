@@ -250,11 +250,22 @@ def play_html5(url):
     except Exception as e:
         xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
 
+# Reproducir enlace AceStream
 def play_acestream(url):
+    """
+    Reproduce un enlace AceStream utilizando el addon Horus.
+    """
     try:
-        xbmc.Player().play(url)
+        # Extraer solo el ID del enlace AceStream (eliminar 'acestream://')
+        acestream_id = url.replace("acestream://", "")
+        
+        # Construir la URL para el addon Horus
+        horus_url = f"plugin://script.module.horus/?action=play&id={acestream_id}"
+        
+        # Reproducir utilizando Horus
+        xbmc.Player().play(horus_url)
     except Exception as e:
-        xbmcgui.Dialog().notification("Error", str(e), xbmcgui.NOTIFICATION_ERROR)
+        xbmcgui.Dialog().notification("Error", f"Error al reproducir: {e}", xbmcgui.NOTIFICATION_ERROR)
 
 if __name__ == '__main__':
     args = dict(parse_qsl(sys.argv[2][1:]))
